@@ -647,7 +647,7 @@ for (let i = 0; i < petalCount; i++) {
 
 /* Subtle ground detail and distant paper backdrop */
 const backdropMat = mat("#e5e5dc", 1, { side: THREE.DoubleSide });
-addMesh(scene, new THREE.PlaneGeometry(24, 13), backdropMat, [0, 4.5, -7.5], { rotation: [0,0,0], castShadow: false });
+addMesh(scene, new THREE.PlaneGeometry(24, 13), backdropMat, [0, 4.5, 7.5], { rotation: [0,0,0], castShadow: false });
 const ambientFill = new THREE.DirectionalLight(0xfff4e7, .55);
 ambientFill.position.set(7, 5, -4); scene.add(ambientFill);
 
