@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#e8e5dc" />
+  <title>桜日和 · 樱花水岸小屋</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="./src/style.css" />
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.166.1/build/three.module.js"
+      }
+    }
+  </script>
+</head>
+<body>
+  <main class="page">
+    <header class="masthead">
+      <div class="brand">桜日和 <span>SAKURA BIYORI</span></div>
+      <div class="tagline">花落庭前，留一盏茶的时间</div>
+    </header>
+    <section class="stage" aria-label="可交互的樱花庭院微缩场景">
+      <div id="scene"></div>
+      <div class="hint">拖动旋转 · 滚轮缩放 · 点击障子门</div>
+      <div class="loading" id="loading">正在整理庭院……</div>
+    </section>
+    <footer class="controls">
+      <div class="time-controls">
+        <span class="control-label">庭院时刻</span>
+        <button data-time="morning" class="time-btn active">清晨 <small>07:00</small></button>
+        <button data-time="sunset" class="time-btn">黄昏 <small>18:00</small></button>
+        <button data-time="night" class="time-btn">夜晚 <small>22:00</small></button>
+      </div>
+      <div class="actions">
+        <button id="doorBtn">开 / 关障子门</button>
+        <button id="calmBtn">纯享模式</button>
+      </div>
+    </footer>
+    <p class="note">一方小庭，四季有信。建议使用电脑拖动欣赏，也可在手机上轻触与缩放。</p>
+  </main>
+  <script type="module" src="./src/main.js"></script>
+</body>
+</html>
