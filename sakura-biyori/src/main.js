@@ -9,14 +9,14 @@ if (!mount) throw new Error('Missing #scene mount element');
 
 const scene = new THREE.Scene();
 scene.background = new THREE.Color("#e7e9df");
-scene.fog = new THREE.Fog("#e7e9df", 17, 34);
+scene.fog = new THREE.Fog("#e7e9df", 22, 42);
 
 const camera = new THREE.PerspectiveCamera(34, 1, 0.1, 100);
-camera.position.set(10.8, 8.6, 12.2);
+camera.position.set(10.8, 8.6, -12.2);
 camera.lookAt(0, 1.25, 0);
 
 const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, powerPreference: "high-performance" });
-renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.7));
+renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -51,6 +51,65 @@ const blossomMats = blossomColors.map(c => mat(c, .72));
 const leafMat = mat("#71896b", .9);
 const darkLeafMat = mat("#526c56", .9);
 
+/* Fine, tileable artisan textures: subtle wood grain, washi fibers, tatami weave and fired clay. */
+function canvasTexture(size, paint, repeatX = 2, repeatY = 2) {
+  const canvas = document.createElement("canvas");
+  canvas.width = canvas.height = size;
+  const ctx = canvas.getContext("2d");
+  paint(ctx, size);
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
+  texture.repeat.set(repeatX, repeatY);
+  texture.anisotropy = Math.min(renderer.capabilities.getMaxAnisotropy(), 8);
+  return texture;
+}
+const woodGrain = canvasTexture(256, (ctx, n) => {
+  ctx.fillStyle = "#b38e68"; ctx.fillRect(0,0,n,n);
+  for (let i=0;i<90;i++) {
+    const y = (i/90)*n, wobble = Math.sin(i*.7)*3;
+    ctx.strokeStyle = i%5===0 ? "rgba(72,45,27,.18)" : "rgba(255,235,198,.15)";
+    ctx.lineWidth = i%5===0 ? 2 : 1;
+    ctx.beginPath(); ctx.moveTo(0,y);
+    ctx.bezierCurveTo(n*.3,y+wobble,n*.65,y-wobble,n,y+Math.sin(i)*2); ctx.stroke();
+  }
+  for (const [x,y,r] of [[62,70,13],[194,183,9],[132,228,5]]) {
+    ctx.strokeStyle="rgba(75,47,29,.22)"; ctx.lineWidth=1.5;
+    ctx.beginPath(); ctx.ellipse(x,y,r,r*.38,.2,0,Math.PI*2); ctx.stroke();
+  }
+}, 2, 1);
+const washiGrain = canvasTexture(256, (ctx,n) => {
+  ctx.fillStyle="#eee5d2"; ctx.fillRect(0,0,n,n);
+  for(let i=0;i<500;i++){
+    const x=(i*73)%n,y=(i*151)%n;
+    ctx.strokeStyle=i%3===0?"rgba(151,126,91,.11)":"rgba(255,255,255,.35)";
+    ctx.lineWidth=.6; ctx.beginPath(); ctx.moveTo(x,y); ctx.lineTo(x+(i*13)%13,y+(i*3)%3); ctx.stroke();
+  }
+}, 1, 1);
+const tatamiWeave = canvasTexture(256, (ctx,n) => {
+  ctx.fillStyle="#c7b995"; ctx.fillRect(0,0,n,n);
+  for(let y=0;y<n;y+=4){
+    ctx.fillStyle=y%8===0?"rgba(89,104,72,.17)":"rgba(255,247,218,.24)";
+    ctx.fillRect(0,y,n,2);
+  }
+  for(let x=0;x<n;x+=5){
+    ctx.fillStyle=x%10===0?"rgba(103,91,62,.13)":"rgba(255,255,255,.18)";
+    ctx.fillRect(x,0,2,n);
+  }
+}, 2, 2);
+const ceramicGrain = canvasTexture(256, (ctx,n) => {
+  ctx.fillStyle="#607276"; ctx.fillRect(0,0,n,n);
+  for(let i=0;i<1700;i++){
+    const v=i%2===0?255:20, a=((i*17)%9)/100;
+    ctx.fillStyle=`rgba(${v},${v},${v},${a})`;
+    ctx.fillRect((i*73)%n,(i*151)%n,(i*7)%3+1,(i*11)%2+1);
+  }
+}, 3, 3);
+wood.map = woodGrain; woodLight.map = woodGrain; woodDark.map = woodGrain;
+wood.needsUpdate = woodLight.needsUpdate = woodDark.needsUpdate = true;
+plaster.map = washiGrain; plaster.needsUpdate = true;
+roofMat.map = ceramicGrain; roofMat.needsUpdate = true;
+
 let seed = 712031;
 function rand() { seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 4294967296; }
 function range(a, b) { return a + (b - a) * rand(); }
@@ -72,6 +131,30 @@ function box(parent, size, material, pos, options = {}) {
 function tube(parent, points, radius, material, segments = 18, radial = 7) {
   const curve = new THREE.CatmullRomCurve3(points.map(p => new THREE.Vector3(...p)));
   return addMesh(parent, new THREE.TubeGeometry(curve, segments, radius, radial, false), material);
+}
+function taperedTube(parent, points, radiusStart, radiusEnd, material, segments = 28, radial = 9) {
+  const curve = new THREE.CatmullRomCurve3(points.map(p => new THREE.Vector3(...p)));
+  const frames = curve.computeFrenetFrames(segments, false);
+  const vertices = [], indices = [];
+  for (let i=0;i<=segments;i++) {
+    const t=i/segments, point=curve.getPointAt(t);
+    const radius=THREE.MathUtils.lerp(radiusStart,radiusEnd,t) * (1 + .035*Math.sin(t*17));
+    for(let j=0;j<=radial;j++){
+      const a=j/radial*Math.PI*2;
+      const normal=frames.normals[i].clone().multiplyScalar(Math.cos(a));
+      const binormal=frames.binormals[i].clone().multiplyScalar(Math.sin(a));
+      const v=point.clone().addScaledVector(normal,radius).addScaledVector(binormal,radius);
+      vertices.push(v.x,v.y,v.z);
+      if(i<segments && j<radial){
+        const k=i*(radial+1)+j;
+        indices.push(k,k+radial+1,k+1,k+1,k+radial+1,k+radial+2);
+      }
+    }
+  }
+  const geometry=new THREE.BufferGeometry();
+  geometry.setAttribute("position",new THREE.Float32BufferAttribute(vertices,3));
+  geometry.setIndex(indices); geometry.computeVertexNormals();
+  return addMesh(parent,geometry,material);
 }
 function lathe(parent, profile, material, pos, segments = 16) {
   return addMesh(parent, new THREE.LatheGeometry(profile.map(p => new THREE.Vector2(p[0], p[1])), segments), material, pos);
@@ -183,8 +266,14 @@ box(world, [4.72, .12, 3.6], mat("#cdbd9f"), [0, .51, .18]);
 const house = new THREE.Group(); world.add(house);
 
 /* Japanese timber frame, plaster infill and exposed beams */
-box(house, [4.28, 1.82, 2.62], plaster, [0, 1.52, .22]);
-for (const x of [-2.12, -1.05, 0, 1.05, 2.12]) {
+// Open-front architecture: the front facade is intentionally omitted so the room is visible
+// when the shoji panels slide apart. A continuous rear wall and two side returns keep the
+// building structurally legible without blocking the interior view.
+box(house, [4.22, 1.82, .14], plaster, [0, 1.52, 1.43]);
+box(house, [.14, 1.82, 2.48], plaster, [-2.04, 1.52, .18]);
+box(house, [.14, 1.82, 2.48], plaster, [2.04, 1.52, .18]);
+box(house, [4.0, .12, .16], plaster, [0, 2.36, 1.43]);
+for (const x of [-2.12, 2.12]) {
   box(house, [.105, 2.18, .13], woodDark, [x, 1.55, -1.12]);
   box(house, [.075, 2.05, .08], woodLight, [x + .045, 1.55, -1.195]);
 }
@@ -259,7 +348,7 @@ for (const x of [-2.45, 2.45]) {
 /* Veranda and tatami room */
 box(house, [4.2, .12, .62], woodLight, [0, .68, -1.47]);
 for (let i = 0; i < 6; i++) box(house, [.035, .04, .58], woodDark, [-1.95 + i * .78, .75, -1.47], { castShadow: false });
-const tatamiMat = mat("#c8b995", .96), tatamiEdge = mat("#8f8b6b");
+const tatamiMat = mat("#c8b995", .96, { map: tatamiWeave }), tatamiEdge = mat("#8f8b6b");
 for (let i = 0; i < 2; i++) for (let j = 0; j < 2; j++) {
   box(house, [1.18, .055, .94], tatamiMat, [-1.23 + i * 1.22, .64, .3 + j * .98]);
   box(house, [1.18, .025, .045], tatamiEdge, [-1.23 + i * 1.22, .68, -.17 + j * .98]);
@@ -270,12 +359,20 @@ const doorFrameMat = mat("#805f43"), shojiPaper = mat("#f0eadc", .98, { transpar
 for (const side of [-1, 1]) {
   const panel = new THREE.Group(); doors.add(panel); panel.position.x = side * .78;
   box(panel, [1.42, 1.7, .055], shojiPaper, [0, .85, 0], { castShadow: false });
-  for (const x of [-.69, .69]) box(panel, [.065, 1.76, .09], doorFrameMat, [x, .85, -.045]);
-  for (const y of [.04, 1.66]) box(panel, [1.42, .065, .09], doorFrameMat, [0, y, -.045]);
-  for (let x = -.52; x <= .53; x += .175) box(panel, [.018, 1.56, .025], woodLight, [x, .85, -.085], { castShadow: false });
-  for (let y = .18; y < 1.58; y += .19) box(panel, [1.29, .018, .025], woodLight, [0, y, -.085], { castShadow: false });
+  box(panel, [1.35, 1.62, .025], paper, [0,.85,-.032], { castShadow:false });
+  for (const x of [-.69, .69]) box(panel, [.075, 1.78, .11], doorFrameMat, [x, .85, -.045]);
+  for (const y of [.04, 1.66]) box(panel, [1.44, .075, .11], doorFrameMat, [0, y, -.045]);
+  for (const x of [-.52,-.35,-.175,0,.175,.35,.52]) {
+    box(panel, [.024, 1.56, .035], woodLight, [x, .85, -.085], { castShadow: false });
+  }
+  for (let y = .18; y < 1.58; y += .19) {
+    box(panel, [1.29, .022, .035], woodLight, [0, y, -.085], { castShadow: false });
+  }
+  // Recessed lower kick rail and delicate brass finger pull
+  box(panel, [1.28,.09,.045], woodDark, [0,.13,-.105]);
+  addMesh(panel, new THREE.TorusGeometry(.035,.008,6,12), mat("#a88c61",.35), [.56,.88,-.12], { rotation:[Math.PI/2,0,0], castShadow:false });
   panel.userData.homeX = side * .78;
-  panel.userData.openX = side * 1.53;
+  panel.userData.openX = side * 1.94;
   panel.userData.targetX = panel.userData.homeX;
   panel.userData.isDoor = true;
 }
@@ -294,6 +391,73 @@ box(house, [.08, .52, .08], woodDark, [1.62, .78, 1.32]);
 box(house, [.34, .28, .035], mat("#d8c8a9"), [1.62, 1.38, 1.34]);
 const roomLight = new THREE.PointLight(0xffc987, 1.15, 4);
 roomLight.position.set(0, 1.8, .5); house.add(roomLight);
+
+
+/* Fine architectural joinery and lived-in interior details */
+const trimMat = mat("#c2a17a"), inkMat = mat("#594b3c");
+const washiWarm = mat("#f4ead7", .98, { side: THREE.DoubleSide });
+/* Rear wall timber bays and low dado rail */
+for (let x = -1.82; x <= 1.83; x += .46) {
+  box(house, [.035, 1.58, .035], woodLight, [x, 1.54, 1.335]);
+}
+for (const y of [.82, 2.28]) box(house, [3.9, .045, .045], woodDark, [0, y, 1.33]);
+/* Subtle plaster wall inset panels */
+for (let i = 0; i < 4; i++) {
+  box(house, [.72, .92, .025], washiWarm, [-1.38 + i * .92, 1.62, 1.32], { castShadow: false });
+}
+/* Floorboards visible through the open front */
+for (let i = 0; i < 10; i++) {
+  const z = -.55 + i * .19;
+  box(house, [3.82, .025, .17], i % 2 ? woodLight : wood, [0, .59, z], { castShadow: false });
+}
+/* Exposed ceiling beams and rafters under the eaves */
+for (let i = 0; i < 9; i++) {
+  const x = -1.9 + i * .475;
+  box(house, [.055, .12, 2.28], woodDark, [x, 2.47, .12]);
+  box(house, [.075, .08, .16], trimMat, [x, 2.48, -1.0]);
+}
+/* Tokonoma alcove: raised timber border, hanging scroll and ikebana */
+box(house, [.92, 1.24, .09], woodDark, [1.48, 1.62, 1.23]);
+box(house, [.76, 1.08, .025], mat("#e7ddc8"), [1.48, 1.63, 1.17]);
+box(house, [.82, .06, .16], woodLight, [1.48, 1.02, 1.16]);
+box(house, [.025, .83, .025], inkMat, [1.48, 1.66, 1.13]);
+box(house, [.34, .48, .018], mat("#d6c8aa"), [1.48, 1.68, 1.105]);
+tube(house, [[1.47,1.44,1.08],[1.4,1.72,1.06],[1.29,1.94,1.05]], .012, woodDark, 12, 5);
+tube(house, [[1.47,1.44,1.08],[1.58,1.79,1.05],[1.69,1.94,1.04]], .012, woodDark, 12, 5);
+leaf(house, [1.33,1.79,1.045], .65, leafMat, .4);
+leaf(house, [1.62,1.83,1.04], .62, blossomMats[1], -.5);
+/* Low tea table, woven zabuton cushions and a tray */
+box(house, [1.05, .075, .68], woodDark, [-.48, .91, .23]);
+box(house, [1.0, .045, .64], woodLight, [-.48, .97, .23]);
+for (const x of [-.88, -.08]) for (const z of [-.02, .48]) {
+  box(house, [.12,.27,.12], woodDark, [x,.76,z]);
+}
+for (const x of [-1.28, .38]) {
+  const cushion = addMesh(house, new THREE.CylinderGeometry(.28,.3,.09,24,1), mat("#a7a08b"), [x,.72,.28]);
+  cushion.scale.z = .82;
+}
+const tray = box(house, [.46,.035,.31], mat("#5b5549"), [-.48,1.015,.22]);
+for (const x of [-.62,-.34]) {
+  lathe(house, [[0,0],[.055,0],[.07,.025],[.06,.09],[.04,.12],[.035,.14],[0,.14]], mat("#eee5d6",.3), [x,1.03,.2], 18);
+}
+/* Tea pot with spout, lid and handle */
+lathe(house, [[0,0],[.12,0],[.16,.07],[.14,.19],[.08,.24],[0,.24]], mat("#9a7860",.34), [-.49,1.03,.29], 20);
+addMesh(house, new THREE.TorusGeometry(.07,.012,8,18,Math.PI), mat("#9a7860"), [-.49,1.21,.29], { rotation:[Math.PI/2,0,0], castShadow:false });
+tube(house, [[-.63,1.12,.29],[-.73,1.18,.29],[-.76,1.23,.29]], .025, mat("#9a7860"), 10, 7);
+/* A small floor lamp with a warm washi shade */
+box(house, [.25,.045,.25], woodDark, [-1.65,.66,.92]);
+box(house, [.045,.58,.045], woodDark, [-1.65,.96,.92]);
+const lampShade = addMesh(house, new THREE.CylinderGeometry(.14,.2,.34,12,1,true), washiWarm, [-1.65,1.43,.92]);
+const lampGlow = new THREE.PointLight(0xffd49c,.7,2.4); lampGlow.position.set(-1.65,1.42,.92); house.add(lampGlow);
+/* Ceiling pendant */
+tube(house, [[-.35,2.42,.15],[-.35,2.13,.15]], .012, woodDark, 6, 5);
+const pendant = addMesh(house, new THREE.CylinderGeometry(.12,.18,.25,10,1,true), washiWarm, [-.35,2.0,.15]);
+const pendantLight = new THREE.PointLight(0xffd7a8,.48,2.2); pendantLight.position.set(-.35,1.95,.15); house.add(pendantLight);
+/* Sliding doors gain a visible recessed wood threshold and finger-pull details */
+box(house, [4.05,.055,.19], woodDark, [0,.63,-1.04]);
+for (const x of [-.78,.78]) {
+  box(house, [.055,.24,.035], trimMat, [x,1.38,-1.105]);
+}
 
 /* Stone path: irregular flagstones with beveled edges */
 for (let i = 0; i < 8; i++) {
@@ -337,6 +501,16 @@ function blossomCluster(parent, center, scale = 1, count = 22) {
     }
   }
   inst.count = n; group.add(inst);
+  const centerGeo = new THREE.SphereGeometry(.026 * scale, 7, 5);
+  const centerMat = mat("#d9a65e", .68);
+  const centers = new THREE.InstancedMesh(centerGeo, centerMat, count);
+  for (let f=0; f<count; f++) {
+    const c = new THREE.Vector3(range(-.18,.18), range(-.14,.14), range(-.18,.18));
+    temp.position.set(c.x,c.y,c.z);
+    temp.rotation.set(0,0,0); temp.scale.setScalar(1);
+    temp.updateMatrix(); centers.setMatrixAt(f,temp.matrix);
+  }
+  group.add(centers);
   return group;
 }
 function makeBranch(parent, start, end, radius) {
@@ -349,7 +523,7 @@ function makeBranch(parent, start, end, radius) {
 function makeTree(x, z, scale, style = 0) {
   const g = new THREE.Group(); world.add(g); g.position.set(x, .18, z); g.scale.setScalar(scale);
   const trunkPoints = [[0,0,0],[-.08,.55,.03],[.06,1.15,0],[.0,1.75,.02],[-.15,2.35,.05]];
-  tube(g, trunkPoints, .12, woodDark, 28, 9);
+  taperedTube(g, trunkPoints, .16, .045, woodDark, 32, 10);
   for (let i = 0; i < 5; i++) {
     const a = i * Math.PI * 2 / 5 + style * .7;
     const len = range(1.05, 1.55);
@@ -541,7 +715,7 @@ document.querySelectorAll(".time-btn").forEach(b => b.addEventListener("click", 
 function resize() {
   const w = Math.max(1, mount.clientWidth), h = Math.max(1, mount.clientHeight);
   camera.aspect = w / h;
-  camera.position.z = w < 600 ? 14.2 : 12.2;
+  camera.position.z = w < 600 ? -14.2 : -12.2;
   camera.updateProjectionMatrix();
   renderer.setSize(w, h, false);
 }
