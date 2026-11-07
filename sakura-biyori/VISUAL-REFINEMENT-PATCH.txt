@@ -1,0 +1,72 @@
+Sakura Biyori visual refinement patch
+=====================================
+
+Target file: sakura-biyori/src/main.js
+
+This patch removes the oversized backdrop plane (the source of the large colored
+rectangles), softens the lighting/shadows, and reframes the model. It preserves
+all existing interactions and animations.
+
+1. Replace:
+const scene = new THREE.Scene();
+scene.background = new THREE.Color("#e7e9df");
+scene.fog = new THREE.Fog("#e7e9df", 22, 42);
+
+With:
+const scene = new THREE.Scene();
+scene.background = new THREE.Color("#e9e7df");
+scene.fog = new THREE.Fog("#e9e7df", 30, 58);
+
+2. Replace camera position:
+camera.position.set(10.8, 8.6, -12.2);
+With:
+camera.position.set(9.4, 7.4, -11.6);
+
+3. Replace the complete lighting block from `const hemi =` through `scene.add(sun);`:
+const hemi = new THREE.HemisphereLight(0xfff8ef, 0x77796c, 1.55);
+scene.add(hemi);
+const sun = new THREE.DirectionalLight(0xffe9d2, 2.0);
+sun.position.set(-6, 11, -7);
+sun.castShadow = true;
+sun.shadow.mapSize.set(2048, 2048);
+sun.shadow.camera.left = -9; sun.shadow.camera.right = 9;
+sun.shadow.camera.top = 9; sun.shadow.camera.bottom = -9;
+sun.shadow.bias = -0.00018;
+sun.shadow.normalBias = 0.025;
+sun.shadow.radius = 5;
+scene.add(sun);
+
+4. Replace:
+const earth = mat("#9da58b"), soil = mat("#827d68"), stone = mat("#77796e");
+With:
+const earth = mat("#a7a28d"), soil = mat("#8a806e"), stone = mat("#858477");
+
+5. Replace:
+const roofMat = mat("#465b61", .78), roofEdge = mat("#34494e");
+With:
+const roofMat = mat("#596c6b", .88), roofEdge = mat("#465754");
+
+6. Replace this entire block:
+ /* Subtle ground detail and distant paper backdrop */
+const backdropMat = mat("#e5e5dc", 1, { side: THREE.DoubleSide });
+addMesh(scene, new THREE.PlaneGeometry(24, 13), backdropMat, [0, 4.5, 7.5], { rotation: [0,0,0], castShadow: false });
+const ambientFill = new THREE.DirectionalLight(0xfff4e7, .55);
+ambientFill.position.set(7, 5, -4); scene.add(ambientFill);
+
+With:
+ /* Soft ambient fill; scene background and fog provide the studio atmosphere. */
+const ambientFill = new THREE.DirectionalLight(0xfff7ee, .32);
+ambientFill.position.set(6, 7, 5); scene.add(ambientFill);
+
+7. Replace:
+let rotY = .55, rotX = -.18, zoom = 1, doorOpen = false;
+With:
+let rotY = .38, rotX = -.12, zoom = .92, doorOpen = false;
+
+8. In resize(), replace:
+camera.position.z = w < 600 ? -14.2 : -12.2;
+With:
+camera.position.z = w < 600 ? -13.2 : -11.6;
+
+Do not change the import, world group, animation loop, or interaction handlers.
+After saving, commit the change and hard-refresh the page (Cmd+Shift+R on Mac).

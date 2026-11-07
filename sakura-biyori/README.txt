@@ -1,0 +1,1 @@
+This ZIP contains the exact source replacements for the visual refinement. The GitHub connection currently rejects repository writes with HTTP 403, so this is supplied as a patch instead of claiming the live repository was updated.\n
